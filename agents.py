@@ -4,12 +4,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url
 import os
+import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # model setuo
-llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0,google_api_key=os.getenv("GEMINI_API_KEY"))
+llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0,google_api_key=st.secrets["GEMINI_API_KEY"])
 
 
 #1st agent 

@@ -2,6 +2,8 @@ import streamlit as st
 import time
 from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
 
+RUN_BUTTON_COOLDOWN_SECONDS = 4 * 60
+
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ResearchMind · AI Research Agent",
@@ -136,6 +138,12 @@ html, body, [class*="css"] {
 }
 .stButton > button:active {
     transform: translateY(0) !important;
+}
+.stButton > button:disabled {
+    background: linear-gradient(135deg, #2e9e5a 0%, #1f7a43 100%) !important;
+    color: #07110b !important;
+    box-shadow: 0 6px 24px rgba(80,200,120,0.28) !important;
+    opacity: 1 !important;
 }
 
 /* ── Pipeline step cards ── */
@@ -318,6 +326,8 @@ def step_card(num: str, title: str, state: str, desc: str = ""):
 for key in ("results", "running", "done"):
     if key not in st.session_state:
         st.session_state[key] = {} if key == "results" else False
+if "run_button_disabled_until" not in st.session_state:
+    st.session_state.run_button_disabled_until = 0.0
 
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
@@ -326,25 +336,101 @@ st.markdown("""
     <div class="hero-eyebrow">Multi-Agent AI System</div>
     <h1>Research<span>Mind</span></h1>
     <p class="hero-sub">
-        Four specialized AI agents collaborate — searching, scraping, writing,
-        and critiquing — to deliver a polished research report on any topic.
+        Four specialized AI agents collaborate — searching, scraping, writing, and critiquing — to deliver a polished research report on any topic.
     </p>
 </div>
 <div class="divider"></div>
 """, unsafe_allow_html=True)
+
+st.components.v1.html(f"""
+<script>
+(function() {{
+    const cooldownKey = "researchmind_run_cooldown_until";
+    const cooldownMs = {RUN_BUTTON_COOLDOWN_SECONDS} * 1000;
+
+    function scrollToBottom() {{
+        try {{
+            var el =
+                window.parent.document.querySelector('[data-testid="stMain"]') ||
+                window.parent.document.querySelector('section.main') ||
+                window.parent.document.querySelector('.main');
+            if (el) {{
+                el.scrollTo({{ top: el.scrollHeight, behavior: 'smooth' }});
+            }} else {{
+                window.parent.scrollTo({{ top: window.parent.document.body.scrollHeight, behavior: 'smooth' }});
+            }}
+        }} catch(e) {{}}
+    }}
+
+    function getRunButton() {{
+        return Array.from(window.parent.document.querySelectorAll('button')).find(function(button) {{
+            return button.innerText && button.innerText.includes('Run Research Pipeline');
+        }}) || null;
+    }}
+
+    function getTopicInput() {{
+        return window.parent.document.querySelector('input[aria-label="Research Topic"]') ||
+            window.parent.document.querySelector('input[placeholder*="Quantum computing breakthroughs in 2025"]') ||
+            null;
+    }}
+
+    function applyCooldown() {{
+        var button = getRunButton();
+        if (!button) {{
+            return false;
+        }}
+
+        var until = parseInt(window.localStorage.getItem(cooldownKey) || '0', 10);
+        button.disabled = Date.now() < until;
+
+        if (!button.dataset.researchmindBound) {{
+            button.dataset.researchmindBound = '1';
+            button.addEventListener('click', function() {{
+                var topicInput = getTopicInput();
+                var topicValue = topicInput && typeof topicInput.value === 'string' ? topicInput.value.trim() : '';
+                if (!topicValue) {{
+                    return;
+                }}
+
+                scrollToBottom();
+                button.disabled = true;
+                button.style.background = 'linear-gradient(135deg, #2e9e5a 0%, #1f7a43 100%)';
+                button.style.boxShadow = '0 6px 24px rgba(80,200,120,0.28)';
+                button.style.color = '#07110b';
+                window.localStorage.setItem(cooldownKey, String(Date.now() + cooldownMs));
+                setTimeout(applyCooldown, 0);
+            }}, true);
+        }}
+
+        return true;
+    }}
+
+    function init() {{
+        if (!applyCooldown()) {{
+            setTimeout(init, 100);
+        }}
+    }}
+
+    init();
+}})();
+</script>
+""", height=1)
 
 
 # ── Layout: input left, pipeline right ───────────────────────────────────────
 col_input, col_spacer, col_pipeline = st.columns([5, 0.5, 4])
 
 with col_input:
+    now = time.time()
+    button_locked = st.session_state.running or now < st.session_state.run_button_disabled_until
+
     topic = st.text_input(
         "Research Topic",
         placeholder="e.g. Quantum computing breakthroughs in 2025",
         key="topic_input",
         label_visibility="visible",
     )
-    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True, disabled=st.session_state.running)
+    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True, disabled=button_locked)
 
     # Example chips
     st.markdown("""
@@ -406,6 +492,7 @@ if run_btn:
     if not topic.strip():
         st.warning("Please enter a research topic first.")
     else:
+        st.session_state.run_button_disabled_until = time.time() + RUN_BUTTON_COOLDOWN_SECONDS
         st.session_state.results = {}
         st.session_state.running = True
         st.session_state.done = False
@@ -466,24 +553,6 @@ if st.session_state.running and not st.session_state.done:
 r = st.session_state.results
 
 if r:
-    # Auto-scroll to results — height must be ≥1 for the iframe to execute JS
-    st.components.v1.html("""
-    <script>
-        setTimeout(function() {
-            try {
-                var el =
-                    window.parent.document.querySelector('[data-testid="stMain"]') ||
-                    window.parent.document.querySelector('section.main') ||
-                    window.parent.document.querySelector('.main');
-                if (el) {
-                    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-                } else {
-                    window.parent.scrollTo({ top: window.parent.document.body.scrollHeight, behavior: 'smooth' });
-                }
-            } catch(e) {}
-        }, 300);
-    </script>
-    """, height=1)
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-heading">Results</div>', unsafe_allow_html=True)
 
