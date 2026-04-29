@@ -3,20 +3,24 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url
-import os
 import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# model setuo
-llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0,google_api_key=st.secrets["GEMINI_API_KEY"])
+
+def get_llm() -> ChatGoogleGenerativeAI:
+    return ChatGoogleGenerativeAI(
+        model="models/gemini-2.5-flash",
+        temperature=0,
+        google_api_key=st.secrets["GEMINI_API_KEY"],
+    )
 
 
 #1st agent 
 def build_search_agent():
     return create_agent(
-        model = llm,
+        model = get_llm(),
         tools= [web_search]
     )
 
@@ -24,7 +28,7 @@ def build_search_agent():
 
 def build_reader_agent():
     return create_agent(
-        model = llm,
+        model = get_llm(),
         tools = [scrape_url]
     )
 
@@ -49,7 +53,8 @@ Structure the report as:
 Be detailed, factual and professional."""),
 ])
 
-writer_chain = writer_prompt | llm | StrOutputParser()
+def get_writer_chain():
+    return writer_prompt | get_llm() | StrOutputParser()
 
 #critic_chain 
 
@@ -76,4 +81,5 @@ One line verdict:
 ..."""),
 ])
 
-critic_chain = critic_prompt | llm | StrOutputParser()
+def get_critic_chain():
+    return critic_prompt | get_llm() | StrOutputParser()

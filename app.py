@@ -1,6 +1,6 @@
 import streamlit as st
 import time
-from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
+from agents import build_reader_agent, build_search_agent, get_writer_chain, get_critic_chain
 
 RUN_BUTTON_COOLDOWN_SECONDS = 4 * 60
 
@@ -531,6 +531,7 @@ if st.session_state.running and not st.session_state.done:
             f"SEARCH RESULTS:\n{results['search']}\n\n"
             f"DETAILED SCRAPED CONTENT:\n{results['reader']}"
         )
+        writer_chain = get_writer_chain()
         results["writer"] = writer_chain.invoke({
             "topic": topic_val,
             "research": research_combined
@@ -539,6 +540,7 @@ if st.session_state.running and not st.session_state.done:
 
     # ── Step 4: Critic ──
     with st.spinner("🧐  Critic is reviewing the report…"):
+        critic_chain = get_critic_chain()
         results["critic"] = critic_chain.invoke({
             "report": results["writer"]
         })

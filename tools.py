@@ -2,18 +2,20 @@ from langchain.tools import tool
 import requests 
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
-import os 
 from rich import print
 import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
 
-tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+
+def get_tavily_client() -> TavilyClient:
+    return TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
 
 @tool
 def web_search(query : str) -> str:
     """Search the web for recent and reliable information on a topic . Returns Titles , URLs and snippets."""
+    tavily = get_tavily_client()
     results = tavily.search(query=query,max_results=5)
 
     out = []
