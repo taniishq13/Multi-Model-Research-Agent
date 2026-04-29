@@ -2,7 +2,7 @@ import streamlit as st
 import time
 from agents import build_reader_agent, build_search_agent, get_writer_chain, get_critic_chain
 
-RUN_BUTTON_COOLDOWN_SECONDS = 4 * 60
+RUN_BUTTON_COOLDOWN_SECONDS = 2 * 60
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(

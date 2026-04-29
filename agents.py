@@ -2,6 +2,7 @@ from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_groq import ChatGroq
 from tools import web_search , scrape_url
 import streamlit as st
 from dotenv import load_dotenv
@@ -9,11 +10,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_llm() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model="models/gemini-2.5-flash",
-        temperature=0,
-        google_api_key=st.secrets["GEMINI_API_KEY"],
+def get_llm():
+    return ChatGroq(
+        model="llama-3.1-8b-instant",
+        api_key=st.secrets["GROQ_API_KEY"],
+        temperature=0.3
     )
 
 
