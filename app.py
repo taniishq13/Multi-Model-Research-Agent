@@ -29,13 +29,16 @@ html, body, [class*="css"] {
 }
 
 /* ── Hide default streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 2rem 3rem 4rem; max-width: 1200px; }
+#MainMenu, footer, header { display: none !important; }
+[data-testid="stHeader"]     { display: none !important; }
+[data-testid="stToolbar"]    { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.block-container { padding: 0 3rem 4rem; max-width: 1200px; }
 
 /* ── Hero header ── */
 .hero {
     text-align: center;
-    padding: 3.5rem 0 2.5rem;
+    padding: 1.2rem 0 1.2rem;
     position: relative;
 }
 .hero-eyebrow {
@@ -335,22 +338,26 @@ st.markdown("""
 col_input, col_spacer, col_pipeline = st.columns([5, 0.5, 4])
 
 with col_input:
-    st.markdown('<div class="input-card">', unsafe_allow_html=True)
     topic = st.text_input(
         "Research Topic",
         placeholder="e.g. Quantum computing breakthroughs in 2025",
         key="topic_input",
         label_visibility="visible",
     )
-    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True, disabled=st.session_state.running)
 
     # Example chips
     st.markdown("""
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
         <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:#605850;letter-spacing:0.1em;">TRY →</span>
     """, unsafe_allow_html=True)
-    examples = ["LLM agents 2025", "CRISPR gene editing", "Fusion energy progress"]
+    examples = [
+        "LLM agents in 2025",
+        "CRISPR clinical trials latest",
+        "Nuclear fusion recent progress",
+        "Quantum computing error correction",
+        "Global AI regulation landscape",
+    ]
     for ex in examples:
         st.markdown(f"""
         <span style="
@@ -459,19 +466,26 @@ if st.session_state.running and not st.session_state.done:
 r = st.session_state.results
 
 if r:
+    # Auto-scroll to results — height must be ≥1 for the iframe to execute JS
+    st.components.v1.html("""
+    <script>
+        setTimeout(function() {
+            try {
+                var el =
+                    window.parent.document.querySelector('[data-testid="stMain"]') ||
+                    window.parent.document.querySelector('section.main') ||
+                    window.parent.document.querySelector('.main');
+                if (el) {
+                    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+                } else {
+                    window.parent.scrollTo({ top: window.parent.document.body.scrollHeight, behavior: 'smooth' });
+                }
+            } catch(e) {}
+        }, 300);
+    </script>
+    """, height=1)
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-heading">Results</div>', unsafe_allow_html=True)
-
-    # Raw outputs in expanders
-    if "search" in r:
-        with st.expander("🔍 Search Results (raw)", expanded=False):
-            st.markdown(f'<div class="result-panel"><div class="result-panel-title">Search Agent Output</div>'
-                        f'<div class="result-content">{r["search"]}</div></div>', unsafe_allow_html=True)
-
-    if "reader" in r:
-        with st.expander("📄 Scraped Content (raw)", expanded=False):
-            st.markdown(f'<div class="result-panel"><div class="result-panel-title">Reader Agent Output</div>'
-                        f'<div class="result-content">{r["reader"]}</div></div>', unsafe_allow_html=True)
 
     # Final report
     if "writer" in r:
