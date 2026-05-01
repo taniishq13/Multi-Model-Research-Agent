@@ -64,6 +64,8 @@
 
 ### Agent Workflow
 
+Each step runs as a node in a LangGraph `StateGraph`, passing a typed `ResearchState` dict that carries the topic, search results, scraped content, draft report, structured critique, and revision count through the graph. The graph flows Search → Reader → Writer → Critic; after the Critic produces its structured score, a conditional edge routes back to Writer for one revision if the score is below 7, or forwards to END if the score is 7 or above.
+
 ```mermaid
 graph TD
     A[User Input: Research Topic] --> B[Step 1: Search Agent]
@@ -77,8 +79,9 @@ graph TD
     I --> J[Structured Research Report]
     J --> K[Step 4: Critic Chain]
     K --> L{Gemini LLM}
-    L --> M[Feedback & Quality Score]
-    M --> N[Final Report + Download]
+    L --> M{CritiqueResult score}
+    M -->|score < 7| H
+    M -->|score ≥ 7| N[Final Report + Download]
 ```
 
 ---
