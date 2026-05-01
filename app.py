@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import time
 from agents import build_reader_agent, build_search_agent, get_writer_chain, get_critic_chain
@@ -509,17 +510,36 @@ if st.session_state.running and not st.session_state.done:
             "messages": [("user", f"Find recent, reliable and detailed information about: {topic_val}")]
         })
         results["search"] = sr["messages"][-1].content
+        # Extract verified URLs from all agent messages for the writer
+        all_search_text = "\n".join(
+            m.content if isinstance(m.content, str) else ""
+            for m in sr["messages"]
+        )
+        seen: set[str] = set()
+        source_urls: list[str] = []
+        for u in re.findall(r"https?://\S+", all_search_text):
+            u = u.rstrip(".,;)")
+            if u not in seen:
+                seen.add(u)
+                source_urls.append(u)
+        results["source_urls"] = source_urls[:5]
         st.session_state.results = dict(results)
     st.rerun() if False else None   # keep inline for now
 
     # ── Step 2: Reader ──
     with st.spinner("📄  Reader Agent is scraping top resources…"):
         reader_agent = build_reader_agent()
+        search_text = results["search"]
+        if isinstance(search_text, list):
+            search_text = " ".join(
+                p.get("text", "") if isinstance(p, dict) else str(p)
+                for p in search_text
+            )
         rr = reader_agent.invoke({
             "messages": [("user",
                 f"Based on the following search results about '{topic_val}', "
                 f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                f"Search Results:\n{results['search'][:800]}"
+                f"Search Results:\n{search_text[:800]}"
             )]
         })
         results["reader"] = rr["messages"][-1].content
@@ -527,14 +547,28 @@ if st.session_state.running and not st.session_state.done:
 
     # ── Step 3: Writer ──
     with st.spinner("✍️  Writer is drafting the report…"):
+        search_text = results["search"]
+        if isinstance(search_text, list):
+            search_text = " ".join(
+                p.get("text", "") if isinstance(p, dict) else str(p)
+                for p in search_text
+            )
+        reader_text = results["reader"]
+        if isinstance(reader_text, list):
+            reader_text = " ".join(
+                p.get("text", "") if isinstance(p, dict) else str(p)
+                for p in reader_text
+            )
         research_combined = (
-            f"SEARCH RESULTS:\n{results['search']}\n\n"
-            f"DETAILED SCRAPED CONTENT:\n{results['reader']}"
+            f"SEARCH RESULTS:\n{search_text}\n\n"
+            f"DETAILED SCRAPED CONTENT:\n{reader_text}"
         )
+        sources = "\n".join(f"- {u}" for u in results.get("source_urls", []))
         writer_chain = get_writer_chain()
         results["writer"] = writer_chain.invoke({
             "topic": topic_val,
-            "research": research_combined
+            "research": research_combined,
+            "sources": sources or "No verified sources available.",
         })
         st.session_state.results = dict(results)
 
