@@ -45,54 +45,70 @@ def build_reader_agent():
 #writer chain
 
 writer_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
-    ("human", """Write a detailed research report on the topic below.
+    ("system", (
+        "You are an expert research writer. You produce structured, scannable, "
+        "information-dense reports. You never invent URLs — you only use sources provided "
+        "to you. You write tight prose: short paragraphs, no filler, no repetition."
+    )),
+    ("human", """Write a research report on: {topic}
 
-Topic: {topic}
+Use ONLY the research material below. Do not fabricate facts or sources.
 
-Research Gathered:
+RESEARCH MATERIAL:
 {research}
 
-Structure the report as:
-- Introduction
-- Key Findings (minimum 3 well-explained points)
-- Conclusion
-- Sources (list all URLs found in the research)
+VERIFIED SOURCE URLS (use these exactly in the Sources section, do not invent others):
+{sources}
 
-Be detailed, factual and professional."""),
+Follow this structure EXACTLY. Use markdown headings.
+
+# <Report Title — specific to the topic, not generic>
+
+## Introduction
+- 120–150 words maximum.
+- State what the topic is, why it matters now, and what the report covers.
+- No filler sentences, no "in this report we will discuss" preambles.
+
+## <Section 1 Heading>
+## <Section 2 Heading>
+## <Section 3 Heading>
+## <Section 4 Heading>
+## <Section 5 Heading>
+[Optional: ## <Section 6 Heading>, ## <Section 7 Heading>]
+
+Rules for sections:
+- Produce between 5 and 7 sections total (not fewer, not more).
+- Each section heading must be specific (e.g., "Current Industry Adoption", not "Overview" or "Background").
+- Each section is EITHER 2–3 short paragraphs (max 4 sentences each) OR a tight bulleted list of 4–6 points. Pick whichever fits the content. Do not mix both inside one section.
+- Sections must cover distinct angles: e.g., context, technical mechanism, key players, recent developments, challenges/risks, outlook. Do not repeat ideas across sections.
+
+## Conclusion
+- 100 words maximum.
+- Synthesize the key takeaway. No new facts. No bullet points.
+
+## Sources
+- List 3–5 URLs from the VERIFIED SOURCE URLS block above, one per line, as a markdown bulleted list.
+- Do not include any URL not in that block.
+- Do not add descriptions — URL only.
+
+Output the report in clean markdown. No preamble, no closing remarks outside the structure above.
+{revision_instructions}"""),
 ])
 
-revision_writer_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
-    ("human", """Revise the following report addressing these weaknesses.
-
-Topic: {topic}
-
-Research Gathered:
-{research}
-
-Previous Report:
-{previous_report}
-
-Weaknesses to address:
-{weaknesses}
-
-Structure the revised report as:
-- Introduction
-- Key Findings (minimum 3 well-explained points)
-- Conclusion
-- Sources (list all URLs found in the research)
-
-Be detailed, factual and professional."""),
-])
 
 def get_writer_chain():
     llm = get_llm()
 
     def build_messages(inputs: dict):
-        if inputs.get("previous_report"):
-            return revision_writer_prompt.format_messages(**inputs)
-        return writer_prompt.format_messages(**inputs)
+        revision_instructions = ""
+        if inputs.get("weaknesses"):
+            revision_instructions = (
+                "\n\n## REVISION INSTRUCTIONS\n"
+                "This is a revision pass. Address ALL of the following weaknesses from the "
+                "previous draft while keeping the 5–7 section structure above:\n"
+                + inputs["weaknesses"]
+            )
+        return writer_prompt.format_messages(**{**inputs, "revision_instructions": revision_instructions})
 
     return RunnableLambda(build_messages) | llm | StrOutputParser()
 

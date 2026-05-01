@@ -1,3 +1,4 @@
+import re
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from agents import build_reader_agent, build_search_agent, get_writer_chain, get_critic_chain, CritiqueResult
@@ -10,6 +11,7 @@ class ResearchState(TypedDict):
     report: str
     critique: CritiqueResult
     revision_count: int
+    source_urls: list[str]
 
 
 def search_node(state: ResearchState) -> dict:
@@ -22,8 +24,24 @@ def search_node(state: ResearchState) -> dict:
         "messages": [("user", f"Find recent, reliable and detailed information about: {state['topic']}")]
     })
     search_results = result['messages'][-1].content
+
+    # Extract URLs from all messages — raw tool output preserves "URL: https://..."
+    all_text = "\n".join(
+        m.content if isinstance(m.content, str) else ""
+        for m in result['messages']
+    )
+    seen: set[str] = set()
+    source_urls: list[str] = []
+    for u in re.findall(r"https?://\S+", all_text):
+        u = u.rstrip(".,;)")
+        if u not in seen:
+            seen.add(u)
+            source_urls.append(u)
+    source_urls = source_urls[:5]
+
     print("\n search result ", search_results)
-    return {"search_results": search_results}
+    print("\n extracted source URLs:", source_urls)
+    return {"search_results": search_results, "source_urls": source_urls}
 
 
 def reader_node(state: ResearchState) -> dict:
@@ -57,9 +75,13 @@ def writer_node(state: ResearchState) -> dict:
         f"DETAILED SCRAPED CONTENT : \n {state['scraped_content']}"
     )
 
-    chain_input = {"topic": state["topic"], "research": research_combined}
+    sources = "\n".join(f"- {u}" for u in state.get("source_urls", []))
+    chain_input = {
+        "topic": state["topic"],
+        "research": research_combined,
+        "sources": sources or "No verified sources available.",
+    }
     if is_revision:
-        chain_input["previous_report"] = state["report"]
         chain_input["weaknesses"] = "\n".join(f"- {w}" for w in critique.weaknesses)
 
     writer_chain = get_writer_chain()
@@ -120,6 +142,7 @@ def run_research_pipeline(topic: str, enable_revision: bool = True) -> dict:
         "report": "",
         "critique": None,
         "revision_count": 0,
+        "source_urls": [],
     }
     return pipeline.invoke(initial_state)
 
