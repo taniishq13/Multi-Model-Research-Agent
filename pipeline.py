@@ -94,7 +94,7 @@ def critic_node(state: ResearchState) -> dict:
     return {"critique": critique}
 
 
-def _build_graph():
+def _build_graph(enable_revision: bool = True):
     graph = StateGraph(ResearchState)
     graph.add_node("search", search_node)
     graph.add_node("reader", reader_node)
@@ -104,12 +104,15 @@ def _build_graph():
     graph.add_edge("search", "reader")
     graph.add_edge("reader", "writer")
     graph.add_edge("writer", "critic")
-    graph.add_conditional_edges("critic", should_revise, {"writer": "writer", "END": END})
+    if enable_revision:
+        graph.add_conditional_edges("critic", should_revise, {"writer": "writer", "END": END})
+    else:
+        graph.add_edge("critic", END)
     return graph.compile()
 
 
-def run_research_pipeline(topic: str) -> dict:
-    pipeline = _build_graph()
+def run_research_pipeline(topic: str, enable_revision: bool = True) -> dict:
+    pipeline = _build_graph(enable_revision)
     initial_state: ResearchState = {
         "topic": topic,
         "search_results": "",
