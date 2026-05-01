@@ -46,7 +46,10 @@ def reader_node(state: ResearchState) -> dict:
 
 def writer_node(state: ResearchState) -> dict:
     print("\n" + " =" * 50)
-    print("step 3 - Writer is drafting the report ...")
+    critique = state.get("critique")
+    is_revision = critique is not None
+    label = "revision" if is_revision else "draft"
+    print(f"step 3 - Writer is producing {label} ...")
     print("=" * 50)
 
     research_combined = (
@@ -54,13 +57,28 @@ def writer_node(state: ResearchState) -> dict:
         f"DETAILED SCRAPED CONTENT : \n {state['scraped_content']}"
     )
 
+    chain_input = {"topic": state["topic"], "research": research_combined}
+    if is_revision:
+        chain_input["previous_report"] = state["report"]
+        chain_input["weaknesses"] = "\n".join(f"- {w}" for w in critique.weaknesses)
+
     writer_chain = get_writer_chain()
-    report = writer_chain.invoke({
-        "topic": state['topic'],
-        "research": research_combined
-    })
+    report = writer_chain.invoke(chain_input)
     print("\n Final Report\n", report)
-    return {"report": report}
+
+    updates: dict = {"report": report}
+    if is_revision:
+        updates["revision_count"] = state["revision_count"] + 1
+    return updates
+
+
+def should_revise(state: ResearchState) -> str:
+    critique = state["critique"]
+    if critique.score < 7 and state["revision_count"] < 1:
+        print(f"\n[should_revise] Score {critique.score} < 7 — triggering revision")
+        return "writer"
+    print(f"\n[should_revise] Score {critique.score} — done")
+    return "END"
 
 
 def critic_node(state: ResearchState) -> dict:
@@ -86,7 +104,7 @@ def _build_graph():
     graph.add_edge("search", "reader")
     graph.add_edge("reader", "writer")
     graph.add_edge("writer", "critic")
-    graph.add_edge("critic", END)
+    graph.add_conditional_edges("critic", should_revise, {"writer": "writer", "END": END})
     return graph.compile()
 
 

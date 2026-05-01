@@ -2,6 +2,7 @@ from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda
 from langchain_groq import ChatGroq
 from pydantic import BaseModel, Field
 from tools import web_search , scrape_url
@@ -42,7 +43,7 @@ def build_reader_agent():
     )
 
 
-#writer chain 
+#writer chain
 
 writer_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
@@ -62,8 +63,39 @@ Structure the report as:
 Be detailed, factual and professional."""),
 ])
 
+revision_writer_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
+    ("human", """Revise the following report addressing these weaknesses.
+
+Topic: {topic}
+
+Research Gathered:
+{research}
+
+Previous Report:
+{previous_report}
+
+Weaknesses to address:
+{weaknesses}
+
+Structure the revised report as:
+- Introduction
+- Key Findings (minimum 3 well-explained points)
+- Conclusion
+- Sources (list all URLs found in the research)
+
+Be detailed, factual and professional."""),
+])
+
 def get_writer_chain():
-    return writer_prompt | get_llm() | StrOutputParser()
+    llm = get_llm()
+
+    def build_messages(inputs: dict):
+        if inputs.get("previous_report"):
+            return revision_writer_prompt.format_messages(**inputs)
+        return writer_prompt.format_messages(**inputs)
+
+    return RunnableLambda(build_messages) | llm | StrOutputParser()
 
 #critic_chain 
 
