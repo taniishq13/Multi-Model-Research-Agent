@@ -1,45 +1,53 @@
-from agents import build_reader_agent , build_search_agent , get_writer_chain , get_critic_chain
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+from agents import build_reader_agent, build_search_agent, get_writer_chain, get_critic_chain, CritiqueResult
 
-def run_research_pipeline(topic : str) -> dict:
 
-    state = {}
+class ResearchState(TypedDict):
+    topic: str
+    search_results: str
+    scraped_content: str
+    report: str
+    critique: CritiqueResult
+    revision_count: int
 
-    #search agent working 
-    print("\n"+" ="*50)
+
+def search_node(state: ResearchState) -> dict:
+    print("\n" + " =" * 50)
     print("step 1 - search agent is working ...")
-    print("="*50)
+    print("=" * 50)
 
     search_agent = build_search_agent()
-    search_result = search_agent.invoke({
-        "messages" : [("user", f"Find recent, reliable and detailed information about: {topic}")]
+    result = search_agent.invoke({
+        "messages": [("user", f"Find recent, reliable and detailed information about: {state['topic']}")]
     })
-    state["search_results"] = search_result['messages'][-1].content
+    search_results = result['messages'][-1].content
+    print("\n search result ", search_results)
+    return {"search_results": search_results}
 
-    print("\n search result ",state['search_results'])
 
-    #step 2 - reader agent 
-    print("\n"+" ="*50)
+def reader_node(state: ResearchState) -> dict:
+    print("\n" + " =" * 50)
     print("step 2 - Reader agent is scraping top resources ...")
-    print("="*50)
+    print("=" * 50)
 
     reader_agent = build_reader_agent()
-    reader_result = reader_agent.invoke({
+    result = reader_agent.invoke({
         "messages": [("user",
-            f"Based on the following search results about '{topic}', "
+            f"Based on the following search results about '{state['topic']}', "
             f"pick the most relevant URL and scrape it for deeper content.\n\n"
             f"Search Results:\n{state['search_results'][:800]}"
         )]
     })
+    scraped_content = result['messages'][-1].content
+    print("\nscraped content: \n", scraped_content)
+    return {"scraped_content": scraped_content}
 
-    state['scraped_content'] = reader_result['messages'][-1].content
 
-    print("\nscraped content: \n", state['scraped_content'])
-
-    #step 3 - writer chain 
-
-    print("\n"+" ="*50)
+def writer_node(state: ResearchState) -> dict:
+    print("\n" + " =" * 50)
     print("step 3 - Writer is drafting the report ...")
-    print("="*50)
+    print("=" * 50)
 
     research_combined = (
         f"SEARCH RESULTS : \n {state['search_results']} \n\n"
@@ -47,28 +55,52 @@ def run_research_pipeline(topic : str) -> dict:
     )
 
     writer_chain = get_writer_chain()
-    state["report"] = writer_chain.invoke({
-        "topic" : topic,
-        "research" : research_combined
+    report = writer_chain.invoke({
+        "topic": state['topic'],
+        "research": research_combined
     })
+    print("\n Final Report\n", report)
+    return {"report": report}
 
-    print("\n Final Report\n",state['report'])
 
-    #critic report 
-
-    print("\n"+" ="*50)
+def critic_node(state: ResearchState) -> dict:
+    print("\n" + " =" * 50)
     print("step 4 - critic is reviewing the report ")
-    print("="*50)
+    print("=" * 50)
 
     critic_chain = get_critic_chain()
-    state["feedback"] = critic_chain.invoke({
-        "report":state['report']
+    critique = critic_chain.invoke({
+        "report": state['report']
     })
+    print("\n critic report \n", critique)
+    return {"critique": critique}
 
-    print("\n critic report \n", state['feedback'])
 
-    return state
+def _build_graph():
+    graph = StateGraph(ResearchState)
+    graph.add_node("search", search_node)
+    graph.add_node("reader", reader_node)
+    graph.add_node("writer", writer_node)
+    graph.add_node("critic", critic_node)
+    graph.add_edge(START, "search")
+    graph.add_edge("search", "reader")
+    graph.add_edge("reader", "writer")
+    graph.add_edge("writer", "critic")
+    graph.add_edge("critic", END)
+    return graph.compile()
 
+
+def run_research_pipeline(topic: str) -> dict:
+    pipeline = _build_graph()
+    initial_state: ResearchState = {
+        "topic": topic,
+        "search_results": "",
+        "scraped_content": "",
+        "report": "",
+        "critique": None,
+        "revision_count": 0,
+    }
+    return pipeline.invoke(initial_state)
 
 
 if __name__ == "__main__":
