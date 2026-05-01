@@ -7,7 +7,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.31+-red.svg)
 
 
-**An intelligent multi-agent system that collaboratively researches any topic and generates comprehensive, well-cited reports.**
+**An intelligent multi-agent system driven by a typed, graph-based LangGraph workflow that collaboratively researches any topic and generates comprehensive, well-cited reports.**
 
 [Features](#-features) • [Architecture](#-architecture) • [Deployment](#-deployment) • [Usage](#-usage) • [API Keys](#-api-keys)
 
@@ -17,11 +17,12 @@
 
 ## 🌟 Features
 
-- **🤖 Multi-Agent Collaboration**: Four specialized AI agents work together in a pipeline
+- **🤖 Multi-Agent Collaboration**: Four specialized AI agents execute as nodes in a typed LangGraph StateGraph
 - **🔍 Web Search Integration**: Uses Tavily API for high-quality web search results
 - **📄 Deep Content Scraping**: Extracts full article content from relevant URLs
-- **✍️ Intelligent Report Writing**: Generates structured, professional research reports
-- **🧐 Quality Assurance**: Built-in critic agent reviews and scores reports
+- **✍️ Intelligent Report Writing**: Generates structured, professional reports and revises them based on critic feedback
+- **🧐 Quality Assurance**: Critic agent returns a structured Pydantic score, strengths, weaknesses, and one-line verdict
+- **🔁 Conditional Revision Loop**: Automatically re-runs the writer on low-scoring reports until quality is accepted or the revision limit is reached
 - **🎨 Beautiful UI**: Modern, responsive Streamlit interface with custom styling
 - **📥 Downloadable Reports**: Export research reports as Markdown files
 
@@ -114,7 +115,7 @@ graph TD
 ---
 
 ### 3️⃣ **Writer Chain** ✍️
-**Purpose**: Drafts comprehensive research report
+**Purpose**: Drafts comprehensive research report, revising based on critic feedback when needed
 
 **How it works**:
 - Receives combined data from Search + Reader agents
@@ -124,9 +125,10 @@ graph TD
   - Key Findings (minimum 3 points)
   - Conclusion
   - Sources (all URLs cited)
+- On a revision pass, incorporates the critic's identified weaknesses to improve the previous draft
 - Generates detailed, factual, professional content
 
-**Output**: Complete Markdown-formatted research report
+**Output**: Complete Markdown-formatted research report (initial draft or revised)
 
 ---
 
@@ -140,13 +142,13 @@ graph TD
   - Factual accuracy
   - Depth of analysis
   - Source quality
-- Provides specific, constructive feedback
+- Returns a structured `CritiqueResult` Pydantic object (not free-form text)
 
-**Output**: 
-- Score (X/10)
-- Strengths (bullet points)
-- Areas to Improve (bullet points)
-- One-line verdict
+**Output** (`CritiqueResult`):
+- `score` — integer 1–10
+- `strengths` — list of strength strings
+- `weaknesses` — list of areas to improve (fed back to the writer on revision)
+- `verdict` — one-line overall assessment
 
 ---
 
