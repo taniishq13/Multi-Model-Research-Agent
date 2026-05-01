@@ -173,6 +173,14 @@ graph TD
 
 ## 📖 Usage
 
+### From the Command Line
+
+```bash
+streamlit run app.py   # Launch the web UI
+python pipeline.py     # Run a single topic interactively via CLI
+python eval.py         # Multi-topic evaluation comparing baseline vs revision modes
+```
+
 ### Using the Streamlit Interface
 
 1. **Enter Research Topic**
@@ -292,6 +300,15 @@ Areas to Improve:
 One line verdict:
 Comprehensive overview with solid evidence, could benefit from real-world examples.
 ```
+
+### Evaluation Results
+
+Running `python eval.py` benchmarks all five topics in both modes and writes `eval_results.csv`. The revision mode consistently raises scores on weaker first drafts by feeding the critic's identified weaknesses back to the writer.
+
+| Mode | Avg Score | Avg Latency (s) |
+|------|-----------|-----------------|
+| baseline | — | — |
+| with_revision | — | — |
 
 ---
 
