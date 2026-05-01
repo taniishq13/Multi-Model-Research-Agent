@@ -3,11 +3,19 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_groq import ChatGroq
+from pydantic import BaseModel, Field
 from tools import web_search , scrape_url
 import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+class CritiqueResult(BaseModel):
+    score: int = Field(..., ge=1, le=10, description="Quality score from 1 to 10")
+    strengths: list[str] = Field(..., description="List of report strengths")
+    weaknesses: list[str] = Field(..., description="List of areas to improve")
+    verdict: str = Field(..., description="One-line overall verdict")
 
 
 def get_llm():
@@ -60,27 +68,15 @@ def get_writer_chain():
 #critic_chain 
 
 critic_prompt = ChatPromptTemplate.from_messages([
-     ("system", "You are a sharp and constructive research critic. Be honest and specific."),
+    ("system", "You are a sharp and constructive research critic. Be honest and specific."),
     ("human", """Review the research report below and evaluate it strictly.
 
 Report:
 {report}
 
-Respond in this exact format:
-
-Score: X/10
-
-Strengths:
-- ...
-- ...
-
-Areas to Improve:
-- ...
-- ...
-
-One line verdict:
-..."""),
+Provide a score (1-10), a list of strengths, a list of weaknesses/areas to improve, and a one-line verdict."""),
 ])
 
 def get_critic_chain():
-    return critic_prompt | get_llm() | StrOutputParser()
+    llm = get_llm()
+    return critic_prompt | llm.with_structured_output(CritiqueResult)
